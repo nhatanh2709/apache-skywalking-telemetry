@@ -35,7 +35,17 @@ spec:
     - port: 2181
       targetPort: 2181
 ---
-# ---------------- Kafka ----------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-jmx-exporter-config
+  namespace: infra
+data:
+  kafka-2_0_0.yml: |
+    lowercaseOutputName: true
+    rules:
+      - pattern: ".*"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -50,13 +60,24 @@ spec:
     metadata:
       labels: { app: kafka }
     spec:
-      enableServiceLinks: false 
+      enableServiceLinks: false
+      initContainers:
+        - name: download-jmx-agent
+          image: curlimages/curl:8.8.0
+          command:
+            - sh
+            - -c
+            - curl -sSL -o /agent/jmx_prometheus_javaagent.jar https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.20.0/jmx_prometheus_javaagent-0.20.0.jar
+          volumeMounts:
+            - name: jmx-agent
+              mountPath: /agent
       containers:
         - name: kafka
           image: confluentinc/cp-kafka:7.6.0
           ports:
             - containerPort: 9092
             - containerPort: 29092
+            - containerPort: 5556   # cổng JMX exporter expose ra
           env:
             - name: KAFKA_BROKER_ID
               value: "1"
@@ -72,6 +93,19 @@ spec:
               value: "PLAINTEXT_INTERNAL"
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
               value: "1"
+            - name: KAFKA_OPTS
+              value: "-javaagent:/opt/jmx-agent/jmx_prometheus_javaagent.jar=5556:/opt/jmx-exporter/kafka-2_0_0.yml"
+          volumeMounts:
+            - name: jmx-agent
+              mountPath: /opt/jmx-agent
+            - name: jmx-exporter-config
+              mountPath: /opt/jmx-exporter
+      volumes:
+        - name: jmx-agent
+          emptyDir: {}
+        - name: jmx-exporter-config
+          configMap:
+            name: kafka-jmx-exporter-config
 ---
 apiVersion: v1
 kind: Service
@@ -87,6 +121,9 @@ spec:
     - name: internal
       port: 29092
       targetPort: 29092
+    - name: jmx-metrics
+      port: 5556
+      targetPort: 5556
 ---
 # ---------------- Kafka UI ----------------
 apiVersion: apps/v1
