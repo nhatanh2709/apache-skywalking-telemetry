@@ -21,7 +21,7 @@ spec:
             # Trỏ thẳng tới Service "backend" trong cùng namespace weather-app.
             # DNS nội bộ k8s: <service>.<namespace>.svc.cluster.local
             - name: REACT_APP_API_BASE
-              value: "http://nginx.weather-app.svc.cluster.local/api"
+              value: "http://backend.weather-app.svc.cluster.local:5000/api"
 ---
 apiVersion: v1
 kind: Service
