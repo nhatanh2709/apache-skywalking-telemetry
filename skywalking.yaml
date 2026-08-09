@@ -19,6 +19,7 @@ spec:
           ports:
             - containerPort: 12800
             - containerPort: 11800
+            - containerPort: 1234
           env:
             - name: SW_STORAGE
               value: "h2"
@@ -51,6 +52,9 @@ spec:
     - name: grpc
       port: 11800
       targetPort: 11800
+    - name: healthy
+      port: 1234
+      targetPort: 1234
 ---
 apiVersion: apps/v1
 kind: Deployment
