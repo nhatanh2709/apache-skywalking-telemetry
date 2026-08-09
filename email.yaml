@@ -4,7 +4,7 @@ metadata:
   name: email-service-config
   namespace: weather-app
 data:
-  KAFKA_BROKERS: "kafka:29092"
+  KAFKA_BROKERS: "kafka.infra.svc.cluster.local:29092"
   KAFKA_LOGIN_TOPIC: "user-login-events"
   SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap.monitoring.svc.cluster.local:11800"
   SW_AGENT_NAME: "weather-email-service"
