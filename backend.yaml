@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: weather-app
+data:
+  MONGO_URI: "mongodb://mongodb:27017/weather_db"
+  KAFKA_BROKERS: "kafka:29092"
+  KAFKA_LOGIN_TOPIC: "user-login-events"
+  SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap:11800"
+  SW_AGENT_NAME: "weather-backend-service"
+  SW_AGENT_INSTANCE_NAME: "backend-instance-1"
+  SW_AGENT_PROFILE_ACTIVE: "True"
+  SW_AGENT_PROFILE_MAX_PARALLEL: "5"
+  SW_AGENT_PROFILE_DURATION: "10"
+  SW_AGENT_PROFILE_DUMP_MAX_STACK_DEPTH: "500"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: weather-app
+  labels: { app: backend }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend }
+    spec:
+      containers:
+        - name: backend
+          image: slayder2709/weather-backend:latest
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: backend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: weather-app
+spec:
+  selector: { app: backend }
+  ports:
+    - port: 5000
+      targetPort: 5000

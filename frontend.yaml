@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: weather-app
+  labels: { app: frontend }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: slayder2709/weather-frontend:latest
+          ports:
+            - containerPort: 3000
+          env:
+            # Trỏ thẳng tới Service "backend" trong cùng namespace weather-app.
+            # DNS nội bộ k8s: <service>.<namespace>.svc.cluster.local
+            - name: REACT_APP_API_BASE
+              value: "http://nginx.weather-app.svc.cluster.local/api"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: weather-app
+spec:
+  selector: { app: frontend }
+  ports:
+    - port: 3000
+      targetPort: 3000
