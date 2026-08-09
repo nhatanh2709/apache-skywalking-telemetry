@@ -27,6 +27,12 @@ spec:
               value: "default"
             - name: SW_OTEL_RECEIVER_ENABLED_OTEL_RULES
               value: "mongodb"
+            - name: SW_TELEMETRY
+              value: "prometheus"
+            - name: SW_TELEMETRY_PROMETHEUS_HOST
+              value: "0.0.0.0"
+            - name: SW_TELEMETRY_PROMETHEUS_PORT
+              value: "1234"
           readinessProbe:
             tcpSocket: { port: 11800 }
             initialDelaySeconds: 40
