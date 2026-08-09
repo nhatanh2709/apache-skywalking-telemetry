@@ -25,8 +25,10 @@ spec:
               value: "h2"
             - name: SW_OTEL_RECEIVER
               value: "default"
-            - name: SW_OTEL_RECEIVER_ENABLED_OTEL_RULES
-              value: "mongodb"
+            - name: SW_OTEL_RECEIVER
+              value: "default"
+            - name: SW_OTEL_RECEIVER_ENABLED_OTEL_METRICS_RULES
+              value: "oap,mongodb"
             - name: SW_TELEMETRY
               value: "prometheus"
             - name: SW_TELEMETRY_PROMETHEUS_HOST
