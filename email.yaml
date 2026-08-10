@@ -6,9 +6,10 @@ metadata:
 data:
   KAFKA_BROKERS: "kafka.infra.svc.cluster.local:29092"
   KAFKA_LOGIN_TOPIC: "user-login-events"
-  SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap.monitoring.svc.cluster.local:11800"
-  SW_AGENT_NAME: "weather-email-service"
-  SW_AGENT_INSTANCE_NAME: "email-instance-1"
+  OTEL_SERVICE_NAME: "weather-email-service"
+  OTEL_TRACES_EXPORTER: "zipkin"
+  OTEL_EXPORTER_ZIPKIN_ENDPOINT: "http://otel-collector.monitoring.svc.cluster.local:9411/api/v2/spans"
+  OTEL_RESOURCE_ATTRIBUTES: "service.instance.id=email-instance-1"
 ---
 # Secret chứa thông tin nhạy cảm SMTP. Không commit file này lên git ở dạng plain text.
 # Tạo secret bằng lệnh (khuyến nghị) thay vì để giá trị base64 tĩnh trong repo:
