@@ -3,15 +3,18 @@ kind: ServiceMonitor
 metadata:
   name: otel-collector
   namespace: monitoring
-  labels:
-    release: prometheus-stack
+  labels: { release: prometheus-stack }
 spec:
   selector:
-    matchLabels:
-      app: otel-collector
+    matchLabels: { app: otel-collector }
   namespaceSelector:
     matchNames: [monitoring]
   endpoints:
-  - port: prom-metrics
-    interval: 30s
-    honorLabels: true  
+    - port: internal-metrics     
+      interval: 30s
+      metricRelabelings:
+        - action: labeldrop
+          regex: otel_scope_(name|version)
+    - port: prom-metrics        
+      interval: 30s
+      honorLabels: true
