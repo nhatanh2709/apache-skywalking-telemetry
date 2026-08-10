@@ -28,7 +28,7 @@ spec:
             - name: prom-metrics
               containerPort: 8889
               protocol: TCP
-            - name: internal-metrics
+            - name: internal
               containerPort: 8888
               protocol: TCP
           volumeMounts:
