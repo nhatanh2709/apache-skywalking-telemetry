@@ -30,7 +30,7 @@ spec:
               protocol: TCP
             - name: internal-metrics
               port: 8888
-              targetPort: 8888
+              protocol: TCP
           volumeMounts:
             - name: otel-config
               mountPath: /etc/otelcol-contrib/config.yaml
