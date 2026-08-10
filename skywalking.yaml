@@ -60,7 +60,7 @@ spec:
     - name: grpc
       port: 11800
       targetPort: 11800
-    - name: healthy
+    - name: prometheus-port
       port: 1234
       targetPort: 1234
 ---
