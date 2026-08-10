@@ -1,3 +1,106 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: banyandb-data
+  namespace: monitoring
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: banyandb
+  namespace: monitoring
+  labels: { app: banyandb }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }          
+  selector:
+    matchLabels: { app: banyandb }
+  template:
+    metadata:
+      labels: { app: banyandb }
+    spec:
+      containers:
+        - name: banyandb
+          image: apache/skywalking-banyandb:0.10.3
+          args:
+            - standalone
+            - --stream-root-path=/data
+            - --measure-root-path=/data
+            - --metadata-root-path=/data
+          ports:
+            - { name: grpc,    containerPort: 17912 }   # OAP -> BanyanDB
+            - { name: http,    containerPort: 17913 }   # Web UI + bydbctl
+            - { name: metrics, containerPort: 2121 }    # Prometheus (auto-enabled)
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits:   { cpu: "2",    memory: "4Gi" }
+          readinessProbe:
+            tcpSocket: { port: 17912 }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket: { port: 17912 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: banyandb-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: banyandb
+  namespace: monitoring
+  labels: { app: banyandb }
+spec:
+  selector: { app: banyandb }
+  ports:
+    - { name: grpc,    port: 17912, targetPort: 17912 }
+    - { name: http,    port: 17913, targetPort: 17913 }
+    - { name: metrics, port: 2121,  targetPort: 2121 }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: skywalking-oap
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: skywalking-oap-k8s-metadata
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "services", "endpoints", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: skywalking-oap-k8s-metadata
+subjects:
+  - kind: ServiceAccount
+    name: skywalking-oap
+    namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: skywalking-oap-k8s-metadata
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,64 +115,65 @@ spec:
     metadata:
       labels: { app: skywalking-oap }
     spec:
-      
+      serviceAccountName: skywalking-oap
       containers:
         - name: skywalking-oap
-          image: apache/skywalking-oap-server:9.7.0
+          image: apache/skywalking-oap-server:10.4.0
           ports:
-            - containerPort: 12800
-            - containerPort: 11800
-            - containerPort: 1234
+            - { name: rest,            containerPort: 12800 }
+            - { name: grpc,            containerPort: 11800 }
+            - { name: prometheus-port, containerPort: 1234  }
+            - { name: zipkin-rcv,      containerPort: 9411  }
+            - { name: zipkin-qry,      containerPort: 9412  }
           env:
             - name: SW_STORAGE
-              value: "h2"
+              value: "banyandb"
+            - name: SW_STORAGE_BANYANDB_TARGETS
+              value: "banyandb:17912"
             - name: SW_OTEL_RECEIVER
               value: "default"
-            - name: SW_OTEL_RECEIVER
-              value: "default"
+            - name: SW_OTEL_RECEIVER_ENABLED_HANDLERS
+              value: "otlp-metrics,otlp-traces,otlp-logs"
             - name: SW_OTEL_RECEIVER_ENABLED_OTEL_METRICS_RULES
-              value: "oap,istio-controlplane,vm,k8s/*,nginx/*,kafka/*,mongodb/*,aws-s3/*"
+              value: "oap,istio-controlplane,vm,k8s/*,nginx/*,kafka/*,mongodb/*,aws-s3/*,banyandb/*"
+            - name: SW_RECEIVER_ZIPKIN
+              value: "default"
+            - name: SW_QUERY_ZIPKIN
+              value: "default"
             - name: SW_TELEMETRY
               value: "prometheus"
             - name: SW_TELEMETRY_PROMETHEUS_HOST
               value: "0.0.0.0"
             - name: SW_TELEMETRY_PROMETHEUS_PORT
               value: "1234"
-            - name: SW_OTEL_RECEIVER_ENABLED_HANDLERS
-              value: "otlp-metrics,otlp-traces"     # bật thêm otlp-traces bên cạnh otlp-metrics đang dùng
-            - name: SW_RECEIVER_ZIPKIN
-              value: "default"                       # bật Zipkin receiver, OTLP trace sẽ convert qua đây
-            - name: SW_QUERY_ZIPKIN
-              value: "default"                       # bật Zipkin query API để UI query được trace này
-
+          resources:
+            requests: { cpu: "500m", memory: "2Gi" }
+            limits:   { cpu: "2",    memory: "4Gi" }
           readinessProbe:
-            tcpSocket: { port: 11800 }
+            httpGet: { path: /healthcheck, port: 12800 }
             initialDelaySeconds: 40
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 12
           livenessProbe:
-            tcpSocket: { port: 11800 }
-            initialDelaySeconds: 60
+            httpGet: { path: /healthcheck, port: 12800 }
+            initialDelaySeconds: 90
             periodSeconds: 15
+            failureThreshold: 6
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: skywalking-oap
+  name: skywalking-oap         
   namespace: monitoring
 spec:
   selector: { app: skywalking-oap }
   ports:
-    - name: rest
-      port: 12800
-      targetPort: 12800
-    - name: grpc
-      port: 11800
-      targetPort: 11800
-    - name: prometheus-port
-      port: 1234
-      targetPort: 1234
+    - { name: rest,            port: 12800, targetPort: 12800 }
+    - { name: grpc,            port: 11800, targetPort: 11800 }
+    - { name: prometheus-port, port: 1234,  targetPort: 1234  }
+    - { name: zipkin-rcv,      port: 9411,  targetPort: 9411  }
+    - { name: zipkin-qry,      port: 9412,  targetPort: 9412  }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -87,12 +191,21 @@ spec:
     spec:
       containers:
         - name: skywalking-ui
-          image: apache/skywalking-ui:9.7.0
+          image: apache/skywalking-ui:10.4.0
           ports:
-            - containerPort: 8080
+            - { containerPort: 8080 }
           env:
             - name: SW_OAP_ADDRESS
               value: "http://skywalking-oap:12800"
+            - name: SW_ZIPKIN_ADDRESS     
+              value: "http://skywalking-oap:9412"
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -100,31 +213,126 @@ metadata:
   name: skywalking-ui
   namespace: monitoring
 spec:
+  type: NodePort
   selector: { app: skywalking-ui }
   ports:
-    - port: 8080
-      targetPort: 8080
-      nodePort: 31389
+    - { name: http, port: 8080, targetPort: 8080, nodePort: 31389 }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: horizon-state
+  namespace: monitoring
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: horizon-secrets
+  namespace: monitoring
+type: Opaque
+stringData:
+  # Argon2id hash — KHÔNG phải password thô (plaintext thì login luôn fail).
+  # Tạo:
+  #   docker run --rm python:3.12-slim sh -c \
+  #     "pip install -q argon2-cffi && python -c \
+  #      \"from argon2 import PasswordHasher; print(PasswordHasher().hash('MatKhauCuaBan'))\""
+  HORIZON_ADMIN_HASH: "$argon2id$v=19$m=65536,t=3,p=4$REPLACE_ME"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: horizon-config
+  namespace: monitoring
+data:
+  horizon.yaml: |
+    server:
+      host: 0.0.0.0          
+      port: 8081
+    oap:
+      queryUrl: http://skywalking-oap:12800
+      zipkinUrl: http://skywalking-oap:9412/zipkin
+    templates:
+      mode: readonly           
+    auth:
+      backend: local
+      local:
+        users:
+          - username: admin
+            passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$4mE2B8D24T95/96pX+v7aQ$dInp/2k78Dk6X8dY/Vz1oTfW6S3XpL5pZ01m4O8m1gM"
+            roles: [admin]    
+
+    rbac:
+      enabled: true
+
+    session:
+      cookieSecure: false      # -> true sau khi có TLS/Ingress phía trước
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: horizon-ui
+  namespace: monitoring
+  labels: { app: horizon-ui }
+spec:
+  replicas: 1                 
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: horizon-ui }
+  template:
+    metadata:
+      labels: { app: horizon-ui }
+    spec:
+      securityContext:
+        fsGroup: 101       
+
+      containers:
+        - name: horizon
+          image: ghcr.io/apache/skywalking-horizon-ui:0.7.0
+          ports:
+            - { name: http, containerPort: 8081 }
+          env:
+            - name: LOG_LEVEL
+              value: "info"    #
+          envFrom:
+            - secretRef: { name: horizon-secrets }
+          volumeMounts:
+            - name: config
+              mountPath: /app/horizon.yaml
+              subPath: horizon.yaml       
+              readOnly: true
+            - name: state
+              mountPath: /data            
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 8081 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: 8081 }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: horizon-config
+            items: [{ key: horizon.yaml, path: horizon.yaml }]
+        - name: state
+          persistentVolumeClaim: { claimName: horizon-state }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: horizon-ui
+  namespace: monitoring
+spec:
   type: NodePort
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: skywalking-oap-k8s-metadata
-rules:
-  - apiGroups: ["*"]
-    resources: ["*"]
-    verbs: ["*"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: skywalking-oap-k8s-metadata
-subjects:
-  - kind: ServiceAccount
-    name: default
-    namespace: monitoring
-roleRef:
-  kind: ClusterRole
-  name: skywalking-oap-k8s-metadata
-  apiGroup: rbac.authorization.k8s.io
+  selector: { app: horizon-ui }
+  ports:
+    - { name: http, port: 8081, targetPort: 8081, nodePort: 31390 }
