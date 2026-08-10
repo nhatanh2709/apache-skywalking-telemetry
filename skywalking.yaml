@@ -36,11 +36,11 @@ spec:
             - name: SW_TELEMETRY_PROMETHEUS_PORT
               value: "1234"
             - name: SW_OTEL_RECEIVER_ENABLED_HANDLERS
-              value: "otlp-metrics,otlp-traces"     
+              value: "otlp-metrics,otlp-traces"     # bật thêm otlp-traces bên cạnh otlp-metrics đang dùng
             - name: SW_RECEIVER_ZIPKIN
-              value: "default"                       
+              value: "default"                       # bật Zipkin receiver, OTLP trace sẽ convert qua đây
             - name: SW_QUERY_ZIPKIN
-              value: "default"                      
+              value: "default"                       # bật Zipkin query API để UI query được trace này
 
           readinessProbe:
             tcpSocket: { port: 11800 }
