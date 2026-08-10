@@ -1,14 +1,3 @@
-# =============================================================================
-# SkyWalking OAP 11.x + Horizon UI + BanyanDB  (namespace: monitoring)
-#
-# Thay doi so voi ban 10.4.0:
-#   1. OAP image -> 11.0.0
-#   2. OAP mo them admin host: 17128 (REST) + 17129 (admin-internal gRPC)
-#   3. Xoa Deployment/Service "skywalking-ui" (OAP 11 khong con bundle web UI)
-#   4. horizon.yaml: them oap.adminUrl -> http://skywalking-oap:17128
-#   5. Horizon UI dung image release apache/skywalking-ui:horizon-0.7.0
-#   6. Bo "banyandb/*" khoi OTEL metrics rules (so11y moi can BanyanDB 0.11+)
-# =============================================================================
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -28,7 +17,7 @@ metadata:
   labels: { app: banyandb }
 spec:
   replicas: 1
-  strategy: { type: Recreate }
+  strategy: { type: Recreate }          
   selector:
     matchLabels: { app: banyandb }
   template:
@@ -37,8 +26,6 @@ spec:
     spec:
       containers:
         - name: banyandb
-          # Doi len 0.11.x khi ban do da release, neu muon dung dashboard
-          # self-observability BanyanDB moi (SWIP-15) cua OAP 11.
           image: apache/skywalking-banyandb:0.10.3
           args:
             - standalone
@@ -48,7 +35,7 @@ spec:
           ports:
             - { name: grpc,    containerPort: 17912 }   # OAP -> BanyanDB
             - { name: http,    containerPort: 17913 }   # Web UI + bydbctl
-            - { name: metrics, containerPort: 2121 }    # Prometheus
+            - { name: metrics, containerPort: 2121 }    # Prometheus (auto-enabled)
           volumeMounts:
             - { name: data, mountPath: /data }
           resources:
@@ -131,18 +118,13 @@ spec:
       serviceAccountName: skywalking-oap
       containers:
         - name: skywalking-oap
-          image: apache/skywalking-oap-server:11.0.0
+          image: apache/skywalking-oap-server:10.4.0
           ports:
             - { name: rest,            containerPort: 12800 }
             - { name: grpc,            containerPort: 11800 }
             - { name: prometheus-port, containerPort: 1234  }
             - { name: zipkin-rcv,      containerPort: 9411  }
             - { name: zipkin-qry,      containerPort: 9412  }
-            # MOI trong 11.x: admin host. Horizon UI doc /status/*, /inspect/*,
-            # /ui-management/templates/* qua port nay.
-            - { name: admin,           containerPort: 17128 }
-            # admin-internal gRPC: chi can khi chay OAP nhieu replica (cluster).
-            - { name: admin-grpc,      containerPort: 17129 }
           env:
             - name: SW_STORAGE
               value: "banyandb"
@@ -152,10 +134,8 @@ spec:
               value: "default"
             - name: SW_OTEL_RECEIVER_ENABLED_HANDLERS
               value: "otlp-metrics,otlp-traces,otlp-logs"
-            # Da bo "banyandb/*": bo rules nay trong 11.x duoc viet lai theo
-            # model cluster/container/group va yeu cau BanyanDB 0.11+.
             - name: SW_OTEL_RECEIVER_ENABLED_OTEL_METRICS_RULES
-              value: "oap,istio-controlplane,vm,k8s/*,nginx/*,kafka/*,mongodb/*,aws-s3/*"
+              value: "oap,istio-controlplane,vm,k8s/*,nginx/*,kafka/*,mongodb/*,aws-s3/*,banyandb/*"
             - name: SW_RECEIVER_ZIPKIN
               value: "default"
             - name: SW_QUERY_ZIPKIN
@@ -166,10 +146,6 @@ spec:
               value: "0.0.0.0"
             - name: SW_TELEMETRY_PROMETHEUS_PORT
               value: "1234"
-            # admin-server + status + inspect + ui-management default = on
-            # trong 11.0.0, khong can khai bao. Neu muon tat mot module:
-            #   - name: SW_DSL_DEBUGGING
-            #     value: ""
           resources:
             requests: { cpu: "500m", memory: "2Gi" }
             limits:   { cpu: "2",    memory: "4Gi" }
@@ -188,10 +164,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: skywalking-oap
+  name: skywalking-oap         
   namespace: monitoring
 spec:
-  # Giu ClusterIP: port 17128 KHONG co authentication -> khong NodePort/Ingress.
   selector: { app: skywalking-oap }
   ports:
     - { name: rest,            port: 12800, targetPort: 12800 }
@@ -199,14 +174,50 @@ spec:
     - { name: prometheus-port, port: 1234,  targetPort: 1234  }
     - { name: zipkin-rcv,      port: 9411,  targetPort: 9411  }
     - { name: zipkin-qry,      port: 9412,  targetPort: 9412  }
-    - { name: admin,           port: 17128, targetPort: 17128 }
-    - { name: admin-grpc,      port: 17129, targetPort: 17129 }
 ---
-# =============================================================================
-# Deployment/Service "skywalking-ui" (apache/skywalking-ui:10.4.0 = Booster UI)
-# da bi XOA: OAP 11 khong con build image do (apm-webapp + booster-ui removed).
-# NodePort 31389 duoc giai phong.
-# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skywalking-ui
+  namespace: monitoring
+  labels: { app: skywalking-ui }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: skywalking-ui }
+  template:
+    metadata:
+      labels: { app: skywalking-ui }
+    spec:
+      containers:
+        - name: skywalking-ui
+          image: apache/skywalking-ui:10.4.0
+          ports:
+            - { containerPort: 8080 }
+          env:
+            - name: SW_OAP_ADDRESS
+              value: "http://skywalking-oap:12800"
+            - name: SW_ZIPKIN_ADDRESS     
+              value: "http://skywalking-oap:9412"
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: skywalking-ui
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector: { app: skywalking-ui }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080, nodePort: 31389 }
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -235,26 +246,24 @@ metadata:
 data:
   horizon.yaml: |
     server:
-      host: 0.0.0.0
+      host: 0.0.0.0          
       port: 8081
     oap:
-      queryUrl: http://skywalking-oap:12800          # GraphQL / MQE / query
-      adminUrl: http://skywalking-oap:17128          # MOI: admin host cua OAP 11
-      zipkinUrl: http://skywalking-oap:9412/zipkin   # chi can neu dung Zipkin
+      queryUrl: http://skywalking-oap:12800
+      zipkinUrl: http://skywalking-oap:9412/zipkin          
     auth:
       backend: local
       local:
         users:
-          # Lay hash tu Secret thay vi hardcode trong ConfigMap.
           - username: admin
-            passwordHash: "${HORIZON_ADMIN_HASH}"
-            roles: [admin]
+            passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$qqofyq+LpF9YzFBaycm6Lg$Bfa0tHCwJCOMP5sX6IGyUArXb9YaelH9wEjQtgh1IOY"
+            roles: [admin]    
 
     rbac:
       enabled: true
 
     session:
-      cookieSecure: false     # dat true khi chay sau TLS
+      cookieSecure: false     
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -263,7 +272,7 @@ metadata:
   namespace: monitoring
   labels: { app: horizon-ui }
 spec:
-  replicas: 1
+  replicas: 1                 
   strategy: { type: Recreate }
   selector:
     matchLabels: { app: horizon-ui }
@@ -272,34 +281,34 @@ spec:
       labels: { app: horizon-ui }
     spec:
       securityContext:
-        fsGroup: 101
+        fsGroup: 101       
+
       containers:
         - name: horizon
-          # Image release (Docker Hub), khong dung ghcr per-commit dev image.
-          image: apache/skywalking-ui:horizon-0.7.0
+          image: ghcr.io/apache/skywalking-horizon-ui:0.7.0
           ports:
             - { name: http, containerPort: 8081 }
           env:
             - name: LOG_LEVEL
-              value: "info"
+              value: "info"    #
           envFrom:
             - secretRef: { name: horizon-secrets }
           volumeMounts:
             - name: config
               mountPath: /app/horizon.yaml
-              subPath: horizon.yaml
+              subPath: horizon.yaml       
               readOnly: true
             - name: state
-              mountPath: /data
+              mountPath: /data            
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1",    memory: "1Gi" }
           readinessProbe:
-            tcpSocket: { port: 8081 }
+            httpGet: { path: /api/health, port: 8081 }
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
-            tcpSocket: { port: 8081 }
+            httpGet: { path: /api/health, port: 8081 }
             initialDelaySeconds: 30
             periodSeconds: 15
       volumes:
