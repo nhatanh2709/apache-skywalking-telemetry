@@ -10,11 +10,11 @@ spec:
   namespaceSelector:
     matchNames: [monitoring]
   endpoints:
-    - port: internal-metrics     
+    - port: metrics
       interval: 30s
       metricRelabelings:
         - action: labeldrop
-          regex: otel_scope_(name|version)
-    - port: prom-metrics        
+          regex: otel_scope_name|otel_scope_version
+    - port: prom-metrics
       interval: 30s
       honorLabels: true
