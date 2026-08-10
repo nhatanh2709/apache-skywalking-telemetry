@@ -86,7 +86,7 @@ spec:
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
               value: "PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT"
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://kafka.weather-app.svc.cluster.local:9092,PLAINTEXT_INTERNAL://kafka:29092"
+              value: "PLAINTEXT://kafka.infra.svc.cluster.local:9092,PLAINTEXT_INTERNAL://kafka.infra.svc.cluster.local:29092"
             - name: KAFKA_LISTENERS
               value: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092"
             - name: KAFKA_INTER_BROKER_LISTENER_NAME
