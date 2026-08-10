@@ -7,7 +7,7 @@ data:
   MONGO_URI: "mongodb://mongodb.infra.svc.cluster.local:27017/weather_db"
   KAFKA_BROKERS: "kafka.infra.svc.cluster.local:29092"
   KAFKA_LOGIN_TOPIC: "user-login-events"
-  SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap.monitoring.svc.cluster.local:11800"
+  SW_AGENT_COLLECTOR_BACKEND_SERVICES: "otel-collector.monitoring.svc.cluster.local:11800"
   SW_AGENT_NAME: "weather-backend-service"
   SW_AGENT_INSTANCE_NAME: "backend-instance-1"
   SW_AGENT_PROFILE_ACTIVE: "True"
