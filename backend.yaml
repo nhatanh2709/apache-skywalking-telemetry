@@ -7,10 +7,13 @@ data:
   MONGO_URI: "mongodb://mongodb.infra.svc.cluster.local:27017/weather_db"
   KAFKA_BROKERS: "kafka.infra.svc.cluster.local:29092"
   KAFKA_LOGIN_TOPIC: "user-login-events"
-  OTEL_SERVICE_NAME: "weather-backend-service"
-  OTEL_TRACES_EXPORTER: "zipkin"
-  OTEL_EXPORTER_ZIPKIN_ENDPOINT: "http://otel-collector.monitoring.svc.cluster.local:9411/api/v2/spans"
-  OTEL_RESOURCE_ATTRIBUTES: "service.instance.id=backend-instance-1"
+  SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap.monitoring.svc.cluster.local:11800"
+  SW_AGENT_NAME: "weather-backend-service"
+  SW_AGENT_INSTANCE_NAME: "backend-instance-1"
+  SW_AGENT_PROFILE_ACTIVE: "True"
+  SW_AGENT_PROFILE_MAX_PARALLEL: "5"
+  SW_AGENT_PROFILE_DURATION: "10"
+  SW_AGENT_PROFILE_DUMP_MAX_STACK_DEPTH: "500"
 ---
 apiVersion: apps/v1
 kind: Deployment
