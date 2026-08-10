@@ -29,14 +29,6 @@ spec:
               value: "default"
             - name: SW_OTEL_RECEIVER_ENABLED_OTEL_METRICS_RULES
               value: "oap,mongodb/mongodb-cluster,mongodb/mongodb-node"
-            - name: SW_OTEL_RECEIVER_ENABLED_HANDLERS
-              value: "otlp-metrics,otlp-logs,otlp-traces"
-            - name: SW_OTEL_RECEIVER_ENABLED_OTEL_METRICS_RULES
-              value: "vm,k8s-cluster,k8s-service,k8s-instance,istio-controlplane"
-            - name: SW_RECEIVER_ZIPKIN
-              value: "default"
-            - name: SW_QUERY_ZIPKIN
-              value: "default"
             - name: SW_TELEMETRY
               value: "prometheus"
             - name: SW_TELEMETRY_PROMETHEUS_HOST
