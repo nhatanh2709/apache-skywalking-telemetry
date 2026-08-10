@@ -35,6 +35,13 @@ spec:
               value: "0.0.0.0"
             - name: SW_TELEMETRY_PROMETHEUS_PORT
               value: "1234"
+            - name: SW_OTEL_RECEIVER_ENABLED_HANDLERS
+              value: "otlp-metrics,otlp-traces"     
+            - name: SW_RECEIVER_ZIPKIN
+              value: "default"                       
+            - name: SW_QUERY_ZIPKIN
+              value: "default"                      
+
           readinessProbe:
             tcpSocket: { port: 11800 }
             initialDelaySeconds: 40
